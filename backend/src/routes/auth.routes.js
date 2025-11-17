@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { pool } from "../config/db.js";
-import { comparePassword, hashPassword } from "../utils/password.js";
 import { signToken, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
@@ -25,23 +24,23 @@ async function getUserRole(userId) {
 }
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password)
-    return res.status(400).json({ error: "Email and password required" });
+  const { username, password } = req.body || {};
+  if (!username || !password)
+    return res.status(400).json({ error: "Username and password required" });
   try {
     const [[user]] = await pool.query(
-      "SELECT id, email, password_hash FROM users WHERE email = ?",
-      [email]
+      "SELECT id, email, username, password_hash FROM users WHERE username = ?",
+      [username]
     );
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
-    const ok = await comparePassword(password, user.password_hash);
+    const ok = password === user.password_hash;
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
     const role = await getUserRole(user.id);
     const token = signToken({ userId: user.id, role });
     return res.json({
       token,
       role,
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, email: user.email, username: user.username },
     });
   } catch (e) {
     console.error(e);
@@ -53,12 +52,12 @@ router.get("/me", requireAuth, async (req, res) => {
   const { userId } = req.user;
   try {
     const [[user]] = await pool.query(
-      "SELECT id, email FROM users WHERE id = ?",
+      "SELECT id, email, full_name, gender, phone FROM users WHERE id = ?",
       [userId]
     );
     if (!user) return res.status(404).json({ error: "User not found" });
     const role = await getUserRole(user.id);
-    return res.json({ role, user });
+    return res.json({ ...user, role });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Failed to fetch profile" });
@@ -96,7 +95,7 @@ router.post("/register-admin", async (req, res) => {
         return res.status(409).json({ error: "Username already taken" });
     }
 
-    const password_hash = await hashPassword(password);
+    const password_hash = password;
     // Derive sensible defaults if not provided
     const username =
       rawUsername?.trim() ||

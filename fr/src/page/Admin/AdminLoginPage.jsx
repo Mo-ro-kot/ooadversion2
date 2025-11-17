@@ -7,10 +7,10 @@ export default function AdminLoginPage() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
-    username: "",
     full_name: "",
   });
 
@@ -24,7 +24,7 @@ export default function AdminLoginPage() {
     try {
       if (isLogin) {
         const { token, role, user } = await api.login(
-          formData.email,
+          formData.username,
           formData.password
         );
         saveAuth({ token, role, user });
@@ -77,22 +77,43 @@ export default function AdminLoginPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label
-              htmlFor="email"
+              htmlFor="username"
               className="block text-sm font-semibold text-gray-700 mb-2"
             >
-              Email
+              Username
             </label>
             <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
+              type="text"
+              id="username"
+              name="username"
+              value={formData.username}
               onChange={handleInputChange}
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              placeholder="admin@example.com"
+              placeholder="admin"
             />
           </div>
+
+          {!isLogin && (
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+                placeholder="admin@example.com"
+              />
+            </div>
+          )}
 
           <div>
             <label
@@ -115,24 +136,6 @@ export default function AdminLoginPage() {
 
           {!isLogin && (
             <>
-              <div>
-                <label
-                  htmlFor="username"
-                  className="block text-sm font-semibold text-gray-700 mb-2"
-                >
-                  Username
-                </label>
-                <input
-                  type="text"
-                  id="username"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-                  placeholder="yourname"
-                />
-              </div>
               <div>
                 <label
                   htmlFor="full_name"
@@ -188,10 +191,10 @@ export default function AdminLoginPage() {
               onClick={() => {
                 setIsLogin(!isLogin);
                 setFormData({
+                  username: "",
                   email: "",
                   password: "",
                   confirmPassword: "",
-                  username: "",
                   full_name: "",
                 });
               }}

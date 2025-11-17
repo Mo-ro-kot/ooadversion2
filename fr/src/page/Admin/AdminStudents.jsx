@@ -66,7 +66,19 @@ export default function AdminStudents() {
     e.preventDefault();
     try {
       if (editingStudent) {
-        alert("Editing not implemented for backend yet");
+        const updateData = {
+          full_name: formData.fullName,
+          email: formData.email,
+          username: formData.username,
+          gender: formData.gender || null,
+          phone: formData.phone || null,
+        };
+        // Only include password if it was changed
+        if (formData.password && formData.password !== "(hidden)") {
+          updateData.password = formData.password;
+        }
+        await api.updateStudent(editingStudent.id, updateData);
+        await loadStudents();
       } else {
         if (
           !formData.fullName ||
@@ -99,15 +111,22 @@ export default function AdminStudents() {
       fullName: student.fullName,
       email: student.email,
       username: student.username,
-      password: student.password,
+      password: "",
       gender: student.gender || "",
       phone: student.phone || "",
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id) => {
-    alert("Delete not implemented with backend yet");
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this student?")) {
+      try {
+        await api.deleteStudent(id);
+        await loadStudents();
+      } catch (err) {
+        alert(err.message || "Failed to delete student");
+      }
+    }
   };
 
   const openModal = () => {

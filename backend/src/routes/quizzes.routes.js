@@ -50,16 +50,18 @@ router.post("/classes/:classId/quizzes", requireAuth, async (req, res) => {
       [classId, title, description || null, due_at || null, userId]
     );
     const quizId = qr.insertId;
-    for (const q of questions) {
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
       const [qRes] = await conn.query(
-        "INSERT INTO quiz_questions (quiz_id, text, points) VALUES (?, ?, ?)",
-        [quizId, q.text, q.points ?? 1]
+        "INSERT INTO quiz_questions (quiz_id, question_text, position) VALUES (?, ?, ?)",
+        [quizId, q.text, i + 1]
       );
       const questionId = qRes.insertId;
-      for (const opt of q.options || []) {
+      for (let j = 0; j < (q.options || []).length; j++) {
+        const opt = q.options[j];
         await conn.query(
-          "INSERT INTO quiz_options (question_id, text, is_correct) VALUES (?, ?, ?)",
-          [questionId, opt.text, !!opt.is_correct]
+          "INSERT INTO quiz_options (question_id, option_text, position, is_correct) VALUES (?, ?, ?, ?)",
+          [questionId, opt.text, j + 1, !!opt.is_correct]
         );
       }
     }
@@ -85,14 +87,14 @@ router.get("/quizzes/:id", requireAuth, async (req, res) => {
     ]);
     if (!quiz) return res.status(404).json({ error: "Quiz not found" });
     const [questions] = await pool.query(
-      "SELECT * FROM quiz_questions WHERE quiz_id = ?",
+      "SELECT id, quiz_id, question_text as text, position FROM quiz_questions WHERE quiz_id = ? ORDER BY position",
       [id]
     );
     const qids = questions.map((q) => q.id);
     let options = [];
     if (qids.length) {
       const [optRows] = await pool.query(
-        "SELECT * FROM quiz_options WHERE question_id IN (?)",
+        "SELECT id, question_id, option_text as text, position, is_correct FROM quiz_options WHERE question_id IN (?) ORDER BY position",
         [qids]
       );
       options = optRows;
@@ -146,14 +148,13 @@ router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
     let correctMap = new Map();
     if (qids.length) {
       const [rows] = await conn.query(
-        "SELECT qo.question_id, qo.id as option_id, qo.is_correct, qq.points FROM quiz_options qo JOIN quiz_questions qq ON qq.id = qo.question_id WHERE qo.question_id IN (?)",
+        "SELECT qo.question_id, qo.id as option_id, qo.is_correct FROM quiz_options qo WHERE qo.question_id IN (?)",
         [qids]
       );
       for (const r of rows) {
         if (!correctMap.has(r.question_id))
           correctMap.set(r.question_id, {
             correctOptionId: null,
-            points: r.points || 1,
           });
         if (r.is_correct) {
           correctMap.get(r.question_id).correctOptionId = r.option_id;
@@ -165,10 +166,9 @@ router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
     for (const a of answers) {
       const correct = correctMap.get(a.question_id) || {
         correctOptionId: null,
-        points: 1,
       };
       const is_correct = a.selected_option_id === correct.correctOptionId;
-      if (is_correct) score += correct.points || 1;
+      if (is_correct) score += 1;
       await conn.query(
         "INSERT INTO quiz_answers (submission_id, question_id, selected_option_id, is_correct) VALUES (?, ?, ?, ?)",
         [submissionId, a.question_id, a.selected_option_id || null, is_correct]
@@ -202,7 +202,7 @@ router.get("/quizzes/:id/submissions", requireAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query(
-      "SELECT qs.*, u.first_name, u.last_name, u.email FROM quiz_submissions qs JOIN users u ON u.id = qs.student_id WHERE qs.quiz_id = ?",
+      "SELECT qs.*, u.full_name, u.email, u.username FROM quiz_submissions qs JOIN users u ON u.id = qs.student_id WHERE qs.quiz_id = ?",
       [id]
     );
     return res.json(rows);

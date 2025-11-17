@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { pool } from "../config/db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { hashPassword } from "../utils/password.js";
 
 const router = Router();
 
@@ -23,8 +22,6 @@ router.put("/me", requireAuth, async (req, res) => {
     return res.status(500).json({ error: "Failed to update profile" });
   }
 });
-
-export default router;
 
 // Admin-only helper to assert role
 async function assertAdmin(req, res) {
@@ -100,7 +97,7 @@ router.post("/students", requireAuth, async (req, res) => {
     );
     if (userExists)
       return res.status(409).json({ error: "Username already used" });
-    const password_hash = await hashPassword(password);
+    const password_hash = password;
     const role = "student";
     const [result] = await pool.query(
       "INSERT INTO users (username, email, password_hash, full_name, gender, phone, role) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -166,7 +163,7 @@ router.post("/teachers", requireAuth, async (req, res) => {
     );
     if (userExists)
       return res.status(409).json({ error: "Username already used" });
-    const password_hash = await hashPassword(password);
+    const password_hash = password;
     const role = "teacher";
     const [result] = await pool.query(
       "INSERT INTO users (username, email, password_hash, full_name, gender, phone, role) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -182,3 +179,243 @@ router.post("/teachers", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to create teacher" });
   }
 });
+
+// Update student
+router.put("/students/:id", requireAuth, async (req, res) => {
+  if (!(await assertAdmin(req, res))) return;
+  const { id } = req.params;
+  const {
+    email,
+    username,
+    password,
+    full_name,
+    gender = null,
+    phone = null,
+  } = req.body || {};
+
+  try {
+    // Check if student exists
+    const [[student]] = await pool.query(
+      "SELECT user_id FROM students WHERE user_id = ?",
+      [id]
+    );
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    // Check email uniqueness if changed
+    if (email) {
+      const [[emailExists]] = await pool.query(
+        "SELECT id FROM users WHERE email = ? AND id != ?",
+        [email, id]
+      );
+      if (emailExists) {
+        return res.status(409).json({ error: "Email already used" });
+      }
+    }
+
+    // Check username uniqueness if changed
+    if (username) {
+      const [[userExists]] = await pool.query(
+        "SELECT id FROM users WHERE username = ? AND id != ?",
+        [username, id]
+      );
+      if (userExists) {
+        return res.status(409).json({ error: "Username already used" });
+      }
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+
+    if (email) {
+      updates.push("email = ?");
+      values.push(email);
+    }
+    if (username) {
+      updates.push("username = ?");
+      values.push(username);
+    }
+    if (password) {
+      updates.push("password_hash = ?");
+      values.push(password);
+    }
+    if (full_name) {
+      updates.push("full_name = ?");
+      values.push(full_name);
+    }
+    if (gender !== undefined) {
+      updates.push("gender = ?");
+      values.push(gender);
+    }
+    if (phone !== undefined) {
+      updates.push("phone = ?");
+      values.push(phone);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    values.push(id);
+    await pool.query(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = ?`,
+      values
+    );
+
+    const [[updatedUser]] = await pool.query(
+      "SELECT id, username, email, full_name, gender, phone, role FROM users WHERE id = ?",
+      [id]
+    );
+    res.json(updatedUser);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to update student" });
+  }
+});
+
+// Update teacher
+router.put("/teachers/:id", requireAuth, async (req, res) => {
+  if (!(await assertAdmin(req, res))) return;
+  const { id } = req.params;
+  const {
+    email,
+    username,
+    password,
+    full_name,
+    gender = null,
+    phone = null,
+  } = req.body || {};
+
+  try {
+    // Check if teacher exists
+    const [[teacher]] = await pool.query(
+      "SELECT user_id FROM teachers WHERE user_id = ?",
+      [id]
+    );
+    if (!teacher) {
+      return res.status(404).json({ error: "Teacher not found" });
+    }
+
+    // Check email uniqueness if changed
+    if (email) {
+      const [[emailExists]] = await pool.query(
+        "SELECT id FROM users WHERE email = ? AND id != ?",
+        [email, id]
+      );
+      if (emailExists) {
+        return res.status(409).json({ error: "Email already used" });
+      }
+    }
+
+    // Check username uniqueness if changed
+    if (username) {
+      const [[userExists]] = await pool.query(
+        "SELECT id FROM users WHERE username = ? AND id != ?",
+        [username, id]
+      );
+      if (userExists) {
+        return res.status(409).json({ error: "Username already used" });
+      }
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+
+    if (email) {
+      updates.push("email = ?");
+      values.push(email);
+    }
+    if (username) {
+      updates.push("username = ?");
+      values.push(username);
+    }
+    if (password) {
+      updates.push("password_hash = ?");
+      values.push(password);
+    }
+    if (full_name) {
+      updates.push("full_name = ?");
+      values.push(full_name);
+    }
+    if (gender !== undefined) {
+      updates.push("gender = ?");
+      values.push(gender);
+    }
+    if (phone !== undefined) {
+      updates.push("phone = ?");
+      values.push(phone);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    values.push(id);
+    await pool.query(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = ?`,
+      values
+    );
+
+    const [[updatedUser]] = await pool.query(
+      "SELECT id, username, email, full_name, gender, phone, role FROM users WHERE id = ?",
+      [id]
+    );
+    res.json(updatedUser);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to update teacher" });
+  }
+});
+
+// Delete student
+router.delete("/students/:id", requireAuth, async (req, res) => {
+  if (!(await assertAdmin(req, res))) return;
+  const { id } = req.params;
+
+  try {
+    // Check if student exists
+    const [[student]] = await pool.query(
+      "SELECT user_id FROM students WHERE user_id = ?",
+      [id]
+    );
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    // Delete user (cascade will delete student record)
+    await pool.query("DELETE FROM users WHERE id = ?", [id]);
+    res.status(204).send();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to delete student" });
+  }
+});
+
+// Delete teacher
+router.delete("/teachers/:id", requireAuth, async (req, res) => {
+  if (!(await assertAdmin(req, res))) return;
+  const { id } = req.params;
+
+  try {
+    // Check if teacher exists
+    const [[teacher]] = await pool.query(
+      "SELECT user_id FROM teachers WHERE user_id = ?",
+      [id]
+    );
+    if (!teacher) {
+      return res.status(404).json({ error: "Teacher not found" });
+    }
+
+    // Delete user (cascade will delete teacher record)
+    await pool.query("DELETE FROM users WHERE id = ?", [id]);
+    res.status(204).send();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to delete teacher" });
+  }
+});
+
+export default router;

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import TeacherTopBar from "../../Component/Teacher/TeacherTopBar";
 import TeacherSideNav from "../../Component/Teacher/TeacherSideNav";
+import { api } from "../../lib/apiClient";
 
 export default function QuizResponses() {
   const location = useLocation();
@@ -9,55 +10,41 @@ export default function QuizResponses() {
   const quiz = location.state?.quiz;
   const classId = location.state?.classId;
 
-  // Load real student quiz responses from localStorage
+  // Load real student quiz responses from backend
   const [responses, setResponses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!quiz || !classId) return;
-
-    // Get enrolled students
-    const enrollments = JSON.parse(localStorage.getItem("enrollments")) || [];
-    const students = JSON.parse(localStorage.getItem("students")) || [];
-    const quizSubmissions =
-      JSON.parse(localStorage.getItem("quizSubmissions")) || [];
-
-    const enrolledStudents = enrollments
-      .filter((e) => e.classId === classId)
-      .map((e) => students.find((s) => s.id === e.studentId))
-      .filter((s) => s);
-
-    const studentResponses = enrolledStudents.map((student) => {
-      const submission = quizSubmissions.find(
-        (s) => s.studentId === student.id && s.quizId === quiz.id
-      );
-
-      if (submission) {
-        return {
-          id: student.id,
-          studentName: student.name,
-          studentEmail: student.username,
-          submittedAt: submission.submittedAt,
-          status: "Submitted",
-          score: submission.score,
-          feedback: submission.feedback || "",
-          answers: submission.answers || [],
-        };
-      } else {
-        return {
-          id: student.id,
-          studentName: student.name,
-          studentEmail: student.username,
-          submittedAt: null,
-          status: "Not Submitted",
-          score: null,
-          feedback: "",
-          answers: [],
-        };
-      }
-    });
-
-    setResponses(studentResponses);
+    loadSubmissions();
   }, [quiz, classId]);
+
+  const loadSubmissions = async () => {
+    if (!quiz?.id) return;
+    try {
+      setLoading(true);
+      const submissions = await api.getQuizSubmissions(quiz.id);
+
+      const studentResponses = submissions.map((sub) => ({
+        id: sub.student_id,
+        submissionId: sub.id,
+        studentName: sub.full_name || sub.username,
+        studentEmail: sub.email,
+        submittedAt: sub.submitted_at,
+        status: "Submitted",
+        score: sub.score,
+        feedback: sub.feedback || "",
+        answers: [], // Quiz answers would need separate endpoint
+      }));
+
+      setResponses(studentResponses);
+    } catch (e) {
+      console.error("Failed to load quiz submissions:", e);
+      alert("Failed to load submissions: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [viewingStudent, setViewingStudent] = useState(null);
   const [gradeScore, setGradeScore] = useState("");
@@ -73,20 +60,13 @@ export default function QuizResponses() {
   const handleSubmitGrade = (e) => {
     e.preventDefault();
 
-    // Update localStorage
-    const quizSubmissions =
-      JSON.parse(localStorage.getItem("quizSubmissions")) || [];
-    const submissionIndex = quizSubmissions.findIndex(
-      (s) => s.studentId === viewingStudent.id && s.quizId === quiz.id
+    // Note: Quiz scores are auto-calculated on submission
+    // This would only update feedback if backend supports it
+    alert(
+      "Quiz scores are automatically calculated. Feedback update not yet implemented."
     );
 
-    if (submissionIndex !== -1) {
-      quizSubmissions[submissionIndex].score = parseInt(gradeScore);
-      quizSubmissions[submissionIndex].feedback = gradeFeedback;
-      localStorage.setItem("quizSubmissions", JSON.stringify(quizSubmissions));
-    }
-
-    // Update local state
+    // Update local state for display
     setResponses(
       responses.map((r) =>
         r.id === viewingStudent.id
@@ -105,14 +85,25 @@ export default function QuizResponses() {
   const submittedResponses = responses.filter((r) => r.status === "Submitted");
   const toReturnResponses = submittedResponses.filter((r) => r.score === null);
   const returnedResponses = submittedResponses.filter((r) => r.score !== null);
-  const notSubmittedResponses = responses.filter(
-    (r) => r.status === "Not Submitted"
-  );
 
   if (!quiz) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>No quiz data found.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <TeacherTopBar />
+        <div className="flex flex-1 overflow-hidden">
+          <TeacherSideNav />
+          <main className="flex-1 flex items-center justify-center">
+            <p>Loading quiz submissions...</p>
+          </main>
+        </div>
       </div>
     );
   }

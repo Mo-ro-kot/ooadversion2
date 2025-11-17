@@ -82,7 +82,7 @@ router.get("/assignments/:id/my-submission", requireAuth, async (req, res) => {
   const { userId } = req.user;
   try {
     const [[row]] = await pool.query(
-      "SELECT * FROM assignment_submissions WHERE assignment_id = ? AND student_id = ?",
+      "SELECT id, assignment_id, student_id, submitted_at, text as text_answer, file_url, file_name, grade, feedback FROM assignment_submissions WHERE assignment_id = ? AND student_id = ?",
       [req.params.id, userId]
     );
     return res.json(row || null);
@@ -107,7 +107,7 @@ router.post("/assignments/:id/submissions", requireAuth, async (req, res) => {
     if (existingRows.length) {
       const submissionId = existingRows[0].id;
       await pool.query(
-        "UPDATE assignment_submissions SET text_answer = ?, file_url = ?, file_name = ?, submitted_at = NOW() WHERE id = ?",
+        "UPDATE assignment_submissions SET text = ?, file_url = ?, file_name = ?, submitted_at = NOW() WHERE id = ?",
         [text_answer || null, file_url || null, file_name || null, submissionId]
       );
       const [[updated]] = await pool.query(
@@ -117,7 +117,7 @@ router.post("/assignments/:id/submissions", requireAuth, async (req, res) => {
       return res.json(updated);
     }
     const [result] = await pool.query(
-      "INSERT INTO assignment_submissions (assignment_id, student_id, text_answer, file_url, file_name, submitted_at) VALUES (?, ?, ?, ?, ?, NOW())",
+      "INSERT INTO assignment_submissions (assignment_id, student_id, text, file_url, file_name, submitted_at) VALUES (?, ?, ?, ?, ?, NOW())",
       [id, userId, text_answer || null, file_url || null, file_name || null]
     );
     const [[row]] = await pool.query(
@@ -138,7 +138,7 @@ router.get("/assignments/:id/submissions", requireAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query(
-      "SELECT s.* , u.first_name, u.last_name, u.email FROM assignment_submissions s JOIN users u ON u.id = s.student_id WHERE s.assignment_id = ?",
+      "SELECT s.*, u.full_name, u.email, u.username FROM assignment_submissions s JOIN users u ON u.id = s.student_id WHERE s.assignment_id = ?",
       [id]
     );
     return res.json(rows);

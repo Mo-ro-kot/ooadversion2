@@ -65,7 +65,19 @@ export default function AdminTeachers() {
     e.preventDefault();
     try {
       if (editingTeacher) {
-        alert("Editing not implemented for backend yet");
+        const updateData = {
+          full_name: formData.fullName,
+          email: formData.email,
+          username: formData.username,
+          gender: formData.gender || null,
+          phone: formData.phone || null,
+        };
+        // Only include password if it was changed
+        if (formData.password && formData.password !== "(hidden)") {
+          updateData.password = formData.password;
+        }
+        await api.updateTeacher(editingTeacher.id, updateData);
+        await loadTeachers();
       } else {
         if (
           !formData.fullName ||
@@ -98,15 +110,22 @@ export default function AdminTeachers() {
       fullName: teacher.fullName,
       email: teacher.email,
       username: teacher.username,
-      password: teacher.password,
+      password: "",
       gender: teacher.gender || "",
       phone: teacher.phone || "",
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id) => {
-    alert("Delete not implemented with backend yet");
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this teacher?")) {
+      try {
+        await api.deleteTeacher(id);
+        await loadTeachers();
+      } catch (err) {
+        alert(err.message || "Failed to delete teacher");
+      }
+    }
   };
 
   const openModal = () => {

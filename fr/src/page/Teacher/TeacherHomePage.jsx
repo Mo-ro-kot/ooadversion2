@@ -1,44 +1,58 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import TeacherTopBar from "../../Component/Teacher/TeacherTopBar";
+import { api } from "../../lib/apiClient";
 
 const HomePage = () => {
-  // Fix: Call useNavigate as a function
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newClassName, setNewClassName] = useState("");
+  const [newClassDescription, setNewClassDescription] = useState("");
   const [editingClass, setEditingClass] = useState(null);
   const [editClassName, setEditClassName] = useState("");
   const [sortBy, setSortBy] = useState(null);
   const [sortOrder, setSortOrder] = useState("asc");
+  const [classData, setClassData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  const loadClasses = async () => {
+    try {
+      setLoading(true);
+      const classes = await api.getClasses();
+      setClassData(classes);
+    } catch (e) {
+      console.error("Failed to load classes:", e);
+      alert("Failed to load classes: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handler for "Create class" button
   const handleCreateClass = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmitClass = (e) => {
+  const handleSubmitClass = async (e) => {
     e.preventDefault();
     if (newClassName.trim()) {
-      const newClass = {
-        id: Date.now(),
-        name: newClassName,
-        status: "In progress",
-        students: 0,
-        date: new Date().toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        }),
-        statusColor: "text-blue-700",
-        assignments: [],
-        quizzes: [],
-      };
-      const updatedClasses = [...classData, newClass];
-      saveClasses(updatedClasses);
-      setNewClassName("");
-      setIsModalOpen(false);
+      try {
+        await api.createClass({
+          name: newClassName,
+          description: newClassDescription || null,
+        });
+        setNewClassName("");
+        setNewClassDescription("");
+        setIsModalOpen(false);
+        await loadClasses();
+      } catch (err) {
+        alert("Failed to create class: " + err.message);
+      }
     }
   };
 
@@ -48,53 +62,30 @@ const HomePage = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleSubmitEdit = (e) => {
+  const handleSubmitEdit = async (e) => {
     e.preventDefault();
-    if (editClassName.trim()) {
-      const updatedClasses = classData.map((item) =>
-        item.id === editingClass.id ? { ...item, name: editClassName } : item
-      );
-      saveClasses(updatedClasses);
-      setIsEditModalOpen(false);
-      setEditingClass(null);
-      setEditClassName("");
-    }
+    alert("Edit class functionality not yet implemented in backend");
+    setIsEditModalOpen(false);
+    setEditingClass(null);
+    setEditClassName("");
   };
 
-  const handleDeleteClass = (classId) => {
+  const handleDeleteClass = async (classId) => {
     if (
       window.confirm(
         "Are you sure you want to delete this class? All assignments and quizzes in this class will also be deleted."
       )
     ) {
-      const updatedClasses = classData.filter((item) => item.id !== classId);
-      saveClasses(updatedClasses);
+      alert("Delete class functionality not yet implemented in backend");
     }
   };
 
   const handleClassClick = (classItem) => {
-    console.log("Navigating to class with data:", classItem);
-    console.log("Class ID:", classItem.id);
-    // Save to localStorage for persistence
-    localStorage.setItem("currentTeacherClass", JSON.stringify(classItem));
     navigate("/Teacher/general", { state: { classData: classItem } });
   };
 
-  const handleToggleStatus = (classId) => {
-    const updatedClasses = classData.map((item) => {
-      if (item.id === classId) {
-        const newStatus =
-          item.status === "In progress" ? "Completed" : "In progress";
-        return {
-          ...item,
-          status: newStatus,
-          statusColor:
-            newStatus === "In progress" ? "text-blue-700" : "text-red-700",
-        };
-      }
-      return item;
-    });
-    saveClasses(updatedClasses);
+  const handleToggleStatus = async (classId) => {
+    alert("Toggle class status functionality not yet implemented in backend");
   };
 
   const handleSort = (field) => {
@@ -116,8 +107,8 @@ const HomePage = () => {
         aValue = a.status;
         bValue = b.status;
       } else if (sortBy === "date") {
-        aValue = new Date(a.date);
-        bValue = new Date(b.date);
+        aValue = new Date(a.created_at);
+        bValue = new Date(b.created_at);
       }
 
       if (sortOrder === "asc") {
@@ -126,23 +117,6 @@ const HomePage = () => {
         return aValue < bValue ? 1 : -1;
       }
     });
-  };
-
-  // Table Data - Load from localStorage
-  const [classData, setClassData] = useState([]);
-
-  useEffect(() => {
-    loadClasses();
-  }, []);
-
-  const loadClasses = () => {
-    const storedClasses = JSON.parse(localStorage.getItem("classes")) || [];
-    setClassData(storedClasses);
-  };
-
-  const saveClasses = (classes) => {
-    localStorage.setItem("classes", JSON.stringify(classes));
-    setClassData(classes);
   };
 
   return (
@@ -223,7 +197,13 @@ const HomePage = () => {
               </tr>
             </thead>
             <tbody>
-              {classData.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="p-8 text-center text-gray-500">
+                    <p className="text-lg">Loading classes...</p>
+                  </td>
+                </tr>
+              ) : classData.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="p-8 text-center text-gray-500">
                     <p className="text-lg mb-2">No classes yet</p>
@@ -259,16 +239,20 @@ const HomePage = () => {
                       </button>
                     </td>
                     <td
-                      className={`p-3 ${item.statusColor} font-semibold cursor-pointer hover:underline`}
+                      className={`p-3 ${
+                        item.status === "completed"
+                          ? "text-green-600"
+                          : "text-blue-600"
+                      } font-semibold cursor-pointer hover:underline`}
                       onClick={() => handleToggleStatus(item.id)}
                       title="Click to toggle status"
                     >
                       {item.status}
                     </td>
+                    <td className="p-3 text-gray-700">-- students</td>
                     <td className="p-3 text-gray-700">
-                      {item.students} students
+                      {new Date(item.created_at).toLocaleDateString()}
                     </td>
-                    <td className="p-3 text-gray-700">{item.date}</td>
                     <td className="p-3 text-center">
                       <button
                         onClick={() => handleDeleteClass(item.id)}
@@ -329,6 +313,23 @@ const HomePage = () => {
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                   placeholder="e.g., OOAD_ITE_M2_2025-2056"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="classDescription"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
+                >
+                  Description (Optional)
+                </label>
+                <textarea
+                  id="classDescription"
+                  value={newClassDescription}
+                  onChange={(e) => setNewClassDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition resize-none"
+                  placeholder="Enter class description..."
                 />
               </div>
 

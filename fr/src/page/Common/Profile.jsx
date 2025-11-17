@@ -3,92 +3,70 @@ import { useState, useEffect } from "react";
 import TeacherTopBar from "../../Component/Teacher/TeacherTopBar";
 import AdminTopBar from "../../Component/Admin/AdminTopBar";
 import StudentTopBar from "../../Component/Student/StudentTopBar";
+import { api } from "../../lib/apiClient";
 
 const ProfilePage = ({ role = "teacher" }) => {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     gender: "",
     phone: "",
   });
+  const [userRole, setUserRole] = useState(role);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
-    // Load user data based on role
-    let currentUser = null;
-    let storageKey = "";
+    loadUserProfile();
+  }, []);
 
-    if (role === "teacher") {
-      currentUser = JSON.parse(localStorage.getItem("currentTeacher"));
-      storageKey = "teachers";
-    } else if (role === "admin") {
-      currentUser = JSON.parse(localStorage.getItem("currentAdmin"));
-      storageKey = "admins";
-    } else if (role === "student") {
-      currentUser = JSON.parse(localStorage.getItem("currentStudent"));
-      storageKey = "students";
-    }
-
-    if (currentUser) {
+  const loadUserProfile = async () => {
+    try {
+      setLoading(true);
+      const user = await api.me();
+      setUserId(user.id);
+      setUserRole(user.role || role);
       setFormData({
-        fullName: currentUser.fullName || currentUser.name || "",
-        email: currentUser.email || "",
-        gender: currentUser.gender || "",
-        phone: currentUser.phone || "",
+        fullName: user.full_name || "",
+        email: user.email || "",
+        gender: user.gender || "",
+        phone: user.phone || "",
       });
+    } catch (error) {
+      console.error("Failed to load user profile:", error);
+      alert("Failed to load profile. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  }, [role]);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
 
-    // Update user data in localStorage
-    let currentUser = null;
-    let storageKey = "";
-    let currentKey = "";
-
-    if (role === "teacher") {
-      currentUser = JSON.parse(localStorage.getItem("currentTeacher"));
-      storageKey = "teachers";
-      currentKey = "currentTeacher";
-    } else if (role === "admin") {
-      currentUser = JSON.parse(localStorage.getItem("currentAdmin"));
-      storageKey = "admins";
-      currentKey = "currentAdmin";
-    } else if (role === "student") {
-      currentUser = JSON.parse(localStorage.getItem("currentStudent"));
-      storageKey = "students";
-      currentKey = "currentStudent";
-    }
-
-    if (currentUser) {
-      // Update current user
-      const updatedUser = {
-        ...currentUser,
-        fullName: formData.fullName,
+    try {
+      await api.updateMe({
+        full_name: formData.fullName,
         email: formData.email,
         gender: formData.gender,
         phone: formData.phone,
-      };
-      localStorage.setItem(currentKey, JSON.stringify(updatedUser));
-
-      // Update in users array
-      const users = JSON.parse(localStorage.getItem(storageKey)) || [];
-      const updatedUsers = users.map((user) =>
-        user.id === currentUser.id ? updatedUser : user
-      );
-      localStorage.setItem(storageKey, JSON.stringify(updatedUsers));
+      });
 
       alert("Profile updated successfully!");
-    }
+      setIsModalOpen(false);
 
-    setIsModalOpen(false);
+      // Reload profile data to reflect changes
+      await loadUserProfile();
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      alert(error.message || "Failed to update profile. Please try again.");
+    }
   };
 
   // Theme colors based on role
@@ -110,21 +88,34 @@ const ProfilePage = ({ role = "teacher" }) => {
     },
   };
 
-  const theme = themes[role] || themes.teacher;
+  const theme = themes[userRole] || themes.teacher;
 
   const TopBar =
-    role === "admin"
+    userRole === "admin"
       ? AdminTopBar
-      : role === "student"
+      : userRole === "student"
       ? StudentTopBar
       : TeacherTopBar;
   const backPath =
-    role === "admin"
+    userRole === "admin"
       ? "/Admin/dashboard"
-      : role === "student"
+      : userRole === "student"
       ? "/Student/dashboard"
       : "/Teacher/homePage";
-  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  const roleLabel = userRole.charAt(0).toUpperCase() + userRole.slice(1);
+
+  if (loading) {
+    return (
+      <div
+        className={`min-h-screen bg-gradient-to-br ${theme.gradient} flex items-center justify-center`}
+      >
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${theme.gradient}`}>

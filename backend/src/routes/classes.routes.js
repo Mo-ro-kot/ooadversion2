@@ -126,4 +126,23 @@ router.post("/:classId/join", requireAuth, async (req, res) => {
   }
 });
 
+// Get enrolled students for a class
+router.get("/:classId/students", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  const { classId } = req.params;
+  try {
+    const role = await getRole(userId);
+    if (!role) return res.status(403).json({ error: "Forbidden" });
+
+    const [students] = await pool.query(
+      "SELECT u.id, u.username, u.email, u.full_name, u.gender, u.phone, e.enrolled_at FROM users u JOIN enrollments e ON e.student_id = u.id WHERE e.class_id = ? ORDER BY u.full_name",
+      [classId]
+    );
+    return res.json(students);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to fetch enrolled students" });
+  }
+});
+
 export default router;

@@ -34,8 +34,8 @@ async function request(
 
 export const api = {
   // Auth
-  login: (email, password) =>
-    request("/auth/login", { method: "POST", body: { email, password } }),
+  login: (username, password) =>
+    request("/auth/login", { method: "POST", body: { username, password } }),
   registerAdmin: (email, password, profile = {}) =>
     request("/auth/register-admin", {
       method: "POST",
@@ -49,13 +49,24 @@ export const api = {
   listStudents: () => request("/api/users/students"),
   createStudent: (data) =>
     request("/api/users/students", { method: "POST", body: data }),
+  updateStudent: (id, data) =>
+    request(`/api/users/students/${id}`, { method: "PUT", body: data }),
+  deleteStudent: (id) =>
+    request(`/api/users/students/${id}`, { method: "DELETE" }),
   listTeachers: () => request("/api/users/teachers"),
   createTeacher: (data) =>
     request("/api/users/teachers", { method: "POST", body: data }),
+  updateTeacher: (id, data) =>
+    request(`/api/users/teachers/${id}`, { method: "PUT", body: data }),
+  deleteTeacher: (id) =>
+    request(`/api/users/teachers/${id}`, { method: "DELETE" }),
 
   // Classes
   getClasses: () => request("/api/classes"),
   getClass: (id) => request(`/api/classes/${id}`),
+  createClass: (data) =>
+    request("/api/classes", { method: "POST", body: data }),
+  getClassStudents: (classId) => request(`/api/classes/${classId}/students`),
   enrollByTeacher: (classId, studentId) =>
     request(`/api/classes/${classId}/enroll/${studentId}`, { method: "POST" }),
   joinClass: (classId) =>
@@ -76,6 +87,16 @@ export const api = {
       method: "POST",
       body: data,
     }),
+  getAssignmentSubmissions: (id) =>
+    request(`/api/assignments/${id}/submissions`),
+  gradeAssignmentSubmission: (assignmentId, submissionId, data) =>
+    request(
+      `/api/assignments/${assignmentId}/submissions/${submissionId}/grade`,
+      {
+        method: "PUT",
+        body: data,
+      }
+    ),
 
   // Quizzes
   listQuizzes: (classId) => request(`/api/classes/${classId}/quizzes`),
@@ -85,6 +106,7 @@ export const api = {
   myQuizSubmission: (id) => request(`/api/quizzes/${id}/my-submission`),
   submitQuiz: (id, data) =>
     request(`/api/quizzes/${id}/submissions`, { method: "POST", body: data }),
+  getQuizSubmissions: (id) => request(`/api/quizzes/${id}/submissions`),
 
   // Files
   uploadFile: async (file) => {

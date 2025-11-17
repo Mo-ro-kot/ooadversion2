@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import TeacherTopBar from "../../Component/Teacher/TeacherTopBar";
 import TeacherSideNav from "../../Component/Teacher/TeacherSideNav";
+import { api, BASE_URL } from "../../lib/apiClient";
 
 export default function AssignmentResponses() {
   const location = useLocation();
@@ -9,56 +10,43 @@ export default function AssignmentResponses() {
   const assignment = location.state?.assignment;
   const classId = location.state?.classId;
 
-  // Load real student responses from localStorage
+  // Load real student responses from backend
   const [responses, setResponses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!assignment || !classId) return;
-
-    // Get enrolled students
-    const enrollments = JSON.parse(localStorage.getItem("enrollments")) || [];
-    const students = JSON.parse(localStorage.getItem("students")) || [];
-    const submissions = JSON.parse(localStorage.getItem("submissions")) || [];
-
-    const enrolledStudents = enrollments
-      .filter((e) => e.classId === classId)
-      .map((e) => students.find((s) => s.id === e.studentId))
-      .filter((s) => s);
-
-    const studentResponses = enrolledStudents.map((student) => {
-      const submission = submissions.find(
-        (s) => s.studentId === student.id && s.assignmentId === assignment.id
-      );
-
-      if (submission) {
-        return {
-          id: student.id,
-          studentName: student.name,
-          studentEmail: student.username,
-          submittedAt: submission.submittedAt,
-          status: "Submitted",
-          score: submission.grade,
-          feedback: submission.feedback || "",
-          submissionText: submission.submissionText,
-          submissionFile: submission.submissionFile,
-        };
-      } else {
-        return {
-          id: student.id,
-          studentName: student.name,
-          studentEmail: student.username,
-          submittedAt: null,
-          status: "Not Submitted",
-          score: null,
-          feedback: "",
-          submissionText: "",
-          submissionFile: null,
-        };
-      }
-    });
-
-    setResponses(studentResponses);
+    loadSubmissions();
   }, [assignment, classId]);
+
+  const loadSubmissions = async () => {
+    if (!assignment?.id) return;
+    try {
+      setLoading(true);
+      const submissions = await api.getAssignmentSubmissions(assignment.id);
+
+      const studentResponses = submissions.map((sub) => ({
+        id: sub.student_id,
+        submissionId: sub.id,
+        studentName: sub.full_name || sub.username,
+        studentEmail: sub.email,
+        submittedAt: sub.submitted_at,
+        status: "Submitted",
+        score: sub.grade,
+        feedback: sub.feedback || "",
+        submissionText: sub.text || "",
+        submissionFile: sub.file_url,
+        submissionFileName: sub.file_name,
+      }));
+
+      setResponses(studentResponses);
+    } catch (e) {
+      console.error("Failed to load submissions:", e);
+      alert("Failed to load submissions: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [viewingStudent, setViewingStudent] = useState(null);
   const [gradeScore, setGradeScore] = useState("");
@@ -71,50 +59,63 @@ export default function AssignmentResponses() {
     setGradeFeedback(response.feedback || "");
   };
 
-  const handleSubmitGrade = (e) => {
+  const handleSubmitGrade = async (e) => {
     e.preventDefault();
 
-    // Update localStorage
-    const submissions = JSON.parse(localStorage.getItem("submissions")) || [];
-    const submissionIndex = submissions.findIndex(
-      (s) =>
-        s.studentId === viewingStudent.id && s.assignmentId === assignment.id
-    );
+    try {
+      await api.gradeAssignmentSubmission(
+        assignment.id,
+        viewingStudent.submissionId,
+        {
+          grade: parseInt(gradeScore) || null,
+          feedback: gradeFeedback || null,
+        }
+      );
 
-    if (submissionIndex !== -1) {
-      submissions[submissionIndex].grade = parseInt(gradeScore);
-      submissions[submissionIndex].feedback = gradeFeedback;
-      localStorage.setItem("submissions", JSON.stringify(submissions));
+      // Update local state
+      setResponses(
+        responses.map((r) =>
+          r.id === viewingStudent.id
+            ? { ...r, score: parseInt(gradeScore), feedback: gradeFeedback }
+            : r
+        )
+      );
+      // Update the viewing student with new data
+      setViewingStudent({
+        ...viewingStudent,
+        score: parseInt(gradeScore),
+        feedback: gradeFeedback,
+      });
+
+      alert("Grade submitted successfully!");
+    } catch (err) {
+      alert("Failed to submit grade: " + err.message);
     }
-
-    // Update local state
-    setResponses(
-      responses.map((r) =>
-        r.id === viewingStudent.id
-          ? { ...r, score: parseInt(gradeScore), feedback: gradeFeedback }
-          : r
-      )
-    );
-    // Update the viewing student with new data
-    setViewingStudent({
-      ...viewingStudent,
-      score: parseInt(gradeScore),
-      feedback: gradeFeedback,
-    });
   };
 
   // Filter responses based on status and grading
   const submittedResponses = responses.filter((r) => r.status === "Submitted");
   const toReturnResponses = submittedResponses.filter((r) => r.score === null);
   const returnedResponses = submittedResponses.filter((r) => r.score !== null);
-  const notSubmittedResponses = responses.filter(
-    (r) => r.status === "Not Submitted"
-  );
 
   if (!assignment) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>No assignment data found.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <TeacherTopBar />
+        <div className="flex flex-1 overflow-hidden">
+          <TeacherSideNav />
+          <main className="flex-1 flex items-center justify-center">
+            <p>Loading submissions...</p>
+          </main>
+        </div>
       </div>
     );
   }
@@ -440,16 +441,22 @@ export default function AssignmentResponses() {
                       </svg>
                       <div>
                         <p className="font-medium text-gray-900">
-                          {viewingStudent.submissionFile}
+                          {viewingStudent.submissionFileName ||
+                            "Submitted file"}
                         </p>
                         <p className="text-sm text-gray-500">
                           Submitted document
                         </p>
                       </div>
                     </div>
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    <a
+                      href={`${BASE_URL}${viewingStudent.submissionFile}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
                       Download
-                    </button>
+                    </a>
                   </div>
                 ) : (
                   <p className="text-gray-500">No file submitted</p>
