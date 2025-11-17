@@ -66,7 +66,14 @@ export const api = {
   getClass: (id) => request(`/api/classes/${id}`),
   createClass: (data) =>
     request("/api/classes", { method: "POST", body: data }),
+  updateClass: (id, data) =>
+    request(`/api/classes/${id}`, { method: "PUT", body: data }),
+  deleteClass: (id) => request(`/api/classes/${id}`, { method: "DELETE" }),
   getClassStudents: (classId) => request(`/api/classes/${classId}/students`),
+  removeStudentFromClass: (classId, studentId) =>
+    request(`/api/classes/${classId}/students/${studentId}`, {
+      method: "DELETE",
+    }),
   enrollByTeacher: (classId, studentId) =>
     request(`/api/classes/${classId}/enroll/${studentId}`, { method: "POST" }),
   joinClass: (classId) =>
@@ -97,6 +104,8 @@ export const api = {
         body: data,
       }
     ),
+  deleteAssignment: (id) =>
+    request(`/api/assignments/${id}`, { method: "DELETE" }),
 
   // Quizzes
   listQuizzes: (classId) => request(`/api/classes/${classId}/quizzes`),
@@ -107,6 +116,7 @@ export const api = {
   submitQuiz: (id, data) =>
     request(`/api/quizzes/${id}/submissions`, { method: "POST", body: data }),
   getQuizSubmissions: (id) => request(`/api/quizzes/${id}/submissions`),
+  deleteQuiz: (id) => request(`/api/quizzes/${id}`, { method: "DELETE" }),
 
   // Files
   uploadFile: async (file) => {

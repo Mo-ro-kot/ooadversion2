@@ -5,12 +5,10 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 async function isTeacher(userId) {
-  console.log("[DEBUG] Checking isTeacher for userId:", userId);
   const [[t]] = await pool.query(
     "SELECT user_id FROM teachers WHERE user_id = ?",
     [userId]
   );
-  console.log("[DEBUG] Teacher query result:", t);
   return !!t;
 }
 async function isStudent(userId) {
@@ -120,7 +118,15 @@ router.get("/quizzes/:id/my-submission", requireAuth, async (req, res) => {
       "SELECT * FROM quiz_submissions WHERE quiz_id = ? AND student_id = ?",
       [req.params.id, userId]
     );
-    return res.json(row || null);
+    if (!row) return res.json(null);
+
+    // Fetch answers for this submission
+    const [answers] = await pool.query(
+      "SELECT question_id, selected_option_id, is_correct FROM quiz_answers WHERE submission_id = ?",
+      [row.id]
+    );
+
+    return res.json({ ...row, answers });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Failed to fetch quiz submission" });
@@ -187,7 +193,14 @@ router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
       "SELECT * FROM quiz_submissions WHERE id = ?",
       [submissionId]
     );
-    return res.status(201).json(result);
+
+    // Fetch answers for the response
+    const [submittedAnswers] = await pool.query(
+      "SELECT question_id, selected_option_id, is_correct FROM quiz_answers WHERE submission_id = ?",
+      [submissionId]
+    );
+
+    return res.status(201).json({ ...result, answers: submittedAnswers });
   } catch (e) {
     await conn.rollback();
     console.error(e);
@@ -199,10 +212,8 @@ router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
 
 router.get("/quizzes/:id/submissions", requireAuth, async (req, res) => {
   const { userId } = req.user;
-  console.log("[DEBUG] Get quiz submissions - userId:", userId);
-  const teacherCheck = await isTeacher(userId);
-  console.log("[DEBUG] isTeacher result:", teacherCheck);
-  if (!teacherCheck) return res.status(403).json({ error: "Forbidden" });
+  if (!(await isTeacher(userId)))
+    return res.status(403).json({ error: "Forbidden" });
   const { id } = req.params;
   try {
     const [rows] = await pool.query(

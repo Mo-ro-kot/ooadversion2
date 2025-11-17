@@ -78,22 +78,34 @@ const General = () => {
         `Are you sure you want to remove ${studentName} from this class?`
       )
     ) {
-      alert("Remove student functionality not yet implemented in backend");
-      // TODO: Implement backend endpoint for removing student from class
+      try {
+        await api.removeStudentFromClass(currentClass.id, studentId);
+        await loadClassData(currentClass.id);
+      } catch (err) {
+        alert("Failed to remove student: " + err.message);
+      }
     }
   };
 
   const handleDeleteAssignment = async (assignmentId) => {
     if (window.confirm("Are you sure you want to delete this assignment?")) {
-      alert("Delete assignment functionality not yet implemented in backend");
-      // TODO: Implement backend endpoint for deleting assignments
+      try {
+        await api.deleteAssignment(assignmentId);
+        await loadClassData(currentClass.id);
+      } catch (err) {
+        alert("Failed to delete assignment: " + err.message);
+      }
     }
   };
 
   const handleDeleteQuiz = async (quizId) => {
     if (window.confirm("Are you sure you want to delete this quiz?")) {
-      alert("Delete quiz functionality not yet implemented in backend");
-      // TODO: Implement backend endpoint for deleting quizzes
+      try {
+        await api.deleteQuiz(quizId);
+        await loadClassData(currentClass.id);
+      } catch (err) {
+        alert("Failed to delete quiz: " + err.message);
+      }
     }
   };
 

@@ -38,12 +38,11 @@ router.post("/classes/:classId/assignments", requireAuth, async (req, res) => {
   if (!(await isTeacher(userId)))
     return res.status(403).json({ error: "Forbidden" });
   const { classId } = req.params;
-  const { title, description, due_at, file_url, file_name, possible_score } =
-    req.body || {};
+  const { title, description, due_at, file_url, file_name } = req.body || {};
   if (!title) return res.status(400).json({ error: "Title required" });
   try {
     const [result] = await pool.query(
-      "INSERT INTO assignments (class_id, title, description, due_at, file_url, file_name, possible_score, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO assignments (class_id, title, description, due_at, file_url, file_name, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [
         classId,
         title,
@@ -51,7 +50,6 @@ router.post("/classes/:classId/assignments", requireAuth, async (req, res) => {
         due_at || null,
         file_url || null,
         file_name || null,
-        possible_score || 100,
         userId,
       ]
     );

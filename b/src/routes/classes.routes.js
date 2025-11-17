@@ -66,7 +66,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   const { userId } = req.user;
-  const { name, description } = req.body || {};
+  const { name } = req.body || {};
   if (!name) return res.status(400).json({ error: "Name required" });
   try {
     // Only teacher or admin can create
@@ -77,8 +77,8 @@ router.post("/", requireAuth, async (req, res) => {
     if (!teacherId)
       return res.status(400).json({ error: "teacher_id required" });
     const [result] = await pool.query(
-      "INSERT INTO classes (name, description, teacher_id) VALUES (?, ?, ?)",
-      [name, description || null, teacherId]
+      "INSERT INTO classes (name, teacher_id) VALUES (?, ?)",
+      [name, teacherId]
     );
     const [[cls]] = await pool.query("SELECT * FROM classes WHERE id = ?", [
       result.insertId,
@@ -144,5 +144,91 @@ router.get("/:classId/students", requireAuth, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch enrolled students" });
   }
 });
+
+// Update class
+router.put("/:id", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  const { id } = req.params;
+  const { name, status } = req.body || {};
+  try {
+    const role = await getRole(userId);
+    if (!["teacher", "admin"].includes(role))
+      return res.status(403).json({ error: "Forbidden" });
+
+    // Check if class exists and user has permission
+    const [[cls]] = await pool.query("SELECT * FROM classes WHERE id = ?", [
+      id,
+    ]);
+    if (!cls) return res.status(404).json({ error: "Class not found" });
+
+    if (role === "teacher" && cls.teacher_id !== userId)
+      return res.status(403).json({ error: "Forbidden" });
+
+    await pool.query(
+      "UPDATE classes SET name = COALESCE(?, name), status = COALESCE(?, status) WHERE id = ?",
+      [name || null, status || null, id]
+    );
+
+    const [[updated]] = await pool.query("SELECT * FROM classes WHERE id = ?", [
+      id,
+    ]);
+    return res.json(updated);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to update class" });
+  }
+});
+
+// Delete class
+router.delete("/:id", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  const { id } = req.params;
+  try {
+    const role = await getRole(userId);
+    if (!["teacher", "admin"].includes(role))
+      return res.status(403).json({ error: "Forbidden" });
+
+    const [[cls]] = await pool.query("SELECT * FROM classes WHERE id = ?", [
+      id,
+    ]);
+    if (!cls) return res.status(404).json({ error: "Class not found" });
+
+    if (role === "teacher" && cls.teacher_id !== userId)
+      return res.status(403).json({ error: "Forbidden" });
+
+    // Delete class (cascading deletes should handle enrollments, assignments, quizzes)
+    await pool.query("DELETE FROM classes WHERE id = ?", [id]);
+    return res.status(204).send();
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to delete class" });
+  }
+});
+
+// Remove student from class
+router.delete(
+  "/:classId/students/:studentId",
+  requireAuth,
+  async (req, res) => {
+    const { userId } = req.user;
+    const { classId, studentId } = req.params;
+    try {
+      const role = await getRole(userId);
+      if (!["teacher", "admin"].includes(role))
+        return res.status(403).json({ error: "Forbidden" });
+
+      await pool.query(
+        "DELETE FROM enrollments WHERE class_id = ? AND student_id = ?",
+        [classId, studentId]
+      );
+      return res.status(204).send();
+    } catch (e) {
+      console.error(e);
+      return res
+        .status(500)
+        .json({ error: "Failed to remove student from class" });
+    }
+  }
+);
 
 export default router;

@@ -29,12 +29,13 @@ export default function StudentQuiz() {
       try {
         if (quizIn?.id) {
           const full = await api.getQuiz(quizIn.id);
-          // transform questions/options to fit UI (options as array of strings)
+          // transform questions/options to fit UI
           setQuiz({
             ...full,
             questions: (full.questions || []).map((q) => ({
               ...q,
               question: q.text,
+              optionsData: q.options || [], // Keep full option data with IDs
               options: (q.options || []).map((o) => o.text),
               correctAnswer: (q.options || []).findIndex((o) => o.is_correct),
             })),
@@ -48,8 +49,18 @@ export default function StudentQuiz() {
           if (sub) {
             setSubmission(sub);
             const answerMap = {};
+            // Convert option IDs to indices for UI
             (sub.answers || []).forEach((ans) => {
-              answerMap[ans.question_id] = ans.selected_option_id;
+              const question = full.questions.find(
+                (q) => q.id === ans.question_id
+              );
+              if (question) {
+                const optionIndex = question.options.findIndex(
+                  (o) => o.id === ans.selected_option_id
+                );
+                answerMap[ans.question_id] =
+                  optionIndex !== -1 ? optionIndex : null;
+              }
             });
             setAnswers(answerMap);
           }
@@ -71,10 +82,18 @@ export default function StudentQuiz() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const answersPayload = (quiz.questions || []).map((q) => ({
-        question_id: q.id,
-        selected_option_id: answers[q.id] ?? null,
-      }));
+      // Convert indices to option IDs
+      const answersPayload = (quiz.questions || []).map((q) => {
+        const answerIndex = answers[q.id];
+        const optionId =
+          answerIndex !== null && answerIndex !== undefined
+            ? q.optionsData[answerIndex]?.id
+            : null;
+        return {
+          question_id: q.id,
+          selected_option_id: optionId ?? null,
+        };
+      });
       const res = await api.submitQuiz(quiz.id, { answers: answersPayload });
       setSubmission(res);
       alert(`Quiz submitted! Your score: ${res.score}`);
@@ -95,7 +114,8 @@ export default function StudentQuiz() {
   }
 
   const isOverdue = quiz?.dueDate ? new Date() > new Date(quiz.dueDate) : false;
-  const isGraded = submission?.score !== null;
+  const isGraded =
+    submission && submission.score !== null && submission.score !== undefined;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -153,7 +173,7 @@ export default function StudentQuiz() {
                 <div>
                   <span className="text-gray-600">Questions:</span>
                   <span className="ml-2 font-semibold text-gray-900">
-                    {quiz.questions.length}
+                    {quiz.questions?.length || 0}
                   </span>
                 </div>
               </div>
@@ -169,11 +189,11 @@ export default function StudentQuiz() {
                   <div>
                     <p className="text-sm text-gray-600">Score</p>
                     <p className="text-3xl font-bold text-cyan-600">
-                      {submission.score}
+                      {submission?.score ?? 0}
                     </p>
                   </div>
                 </div>
-                {submission.feedback && (
+                {submission?.feedback && (
                   <div>
                     <p className="text-sm font-semibold text-gray-700 mb-2">
                       Feedback:
@@ -262,11 +282,19 @@ export default function StudentQuiz() {
                   Review Your Answers
                 </h2>
                 {quiz?.questions?.map((question, index) => {
-                  // In backend submission, details per-question correctness are separate; here we infer using client quiz correctness
-                  const studentAnswerId = submission.answers?.find(
+                  // Get student's answer using is_correct from backend
+                  const studentAnswer = submission?.answers?.find(
                     (a) => a.question_id === question.id
-                  )?.selected_option_id;
-                  const isCorrect = studentAnswerId === question.correctAnswer;
+                  );
+                  const isCorrect = studentAnswer?.is_correct ?? false;
+
+                  // Find which option index was selected
+                  const selectedOptionId = studentAnswer?.selected_option_id;
+                  const selectedOptionIndex = selectedOptionId
+                    ? question.optionsData.findIndex(
+                        (o) => o.id === selectedOptionId
+                      )
+                    : -1;
 
                   return (
                     <div
@@ -291,7 +319,8 @@ export default function StudentQuiz() {
                       </div>
                       <div className="space-y-2">
                         {question.options.map((option, optIndex) => {
-                          const isStudentAnswer = studentAnswerId === optIndex;
+                          const isStudentAnswer =
+                            selectedOptionIndex === optIndex;
                           const isCorrectAnswer =
                             optIndex === question.correctAnswer;
 

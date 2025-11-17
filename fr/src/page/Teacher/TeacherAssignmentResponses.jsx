@@ -182,16 +182,6 @@ export default function AssignmentResponses() {
                 >
                   Returned ({returnedResponses.length})
                 </button>
-                <button
-                  onClick={() => setActiveTab("notSubmitted")}
-                  className={`px-6 py-3 font-semibold ${
-                    activeTab === "notSubmitted"
-                      ? "border-b-2 border-indigo-600 text-indigo-600"
-                      : "text-gray-600 hover:text-gray-800"
-                  }`}
-                >
-                  Not Submitted ({notSubmittedResponses.length})
-                </button>
               </div>
             </div>
 
@@ -272,32 +262,10 @@ export default function AssignmentResponses() {
                       </tr>
                     ))}
 
-                  {activeTab === "notSubmitted" &&
-                    notSubmittedResponses.map((response) => (
-                      <tr key={response.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {response.studentName}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {response.studentEmail}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          —
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          No submission
-                        </td>
-                      </tr>
-                    ))}
-
                   {((activeTab === "toReturn" &&
                     toReturnResponses.length === 0) ||
                     (activeTab === "returned" &&
-                      returnedResponses.length === 0) ||
-                    (activeTab === "notSubmitted" &&
-                      notSubmittedResponses.length === 0)) && (
+                      returnedResponses.length === 0)) && (
                     <tr>
                       <td
                         colSpan="4"
@@ -306,9 +274,7 @@ export default function AssignmentResponses() {
                         No{" "}
                         {activeTab === "toReturn"
                           ? "submissions to grade"
-                          : activeTab === "returned"
-                          ? "graded submissions"
-                          : "missing submissions"}
+                          : "graded submissions"}
                       </td>
                     </tr>
                   )}

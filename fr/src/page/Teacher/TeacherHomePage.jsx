@@ -8,7 +8,6 @@ const HomePage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newClassName, setNewClassName] = useState("");
-  const [newClassDescription, setNewClassDescription] = useState("");
   const [editingClass, setEditingClass] = useState(null);
   const [editClassName, setEditClassName] = useState("");
   const [sortBy, setSortBy] = useState(null);
@@ -44,10 +43,8 @@ const HomePage = () => {
       try {
         await api.createClass({
           name: newClassName,
-          description: newClassDescription || null,
         });
         setNewClassName("");
-        setNewClassDescription("");
         setIsModalOpen(false);
         await loadClasses();
       } catch (err) {
@@ -64,10 +61,17 @@ const HomePage = () => {
 
   const handleSubmitEdit = async (e) => {
     e.preventDefault();
-    alert("Edit class functionality not yet implemented in backend");
-    setIsEditModalOpen(false);
-    setEditingClass(null);
-    setEditClassName("");
+    if (editClassName.trim() && editingClass) {
+      try {
+        await api.updateClass(editingClass.id, { name: editClassName });
+        setIsEditModalOpen(false);
+        setEditingClass(null);
+        setEditClassName("");
+        await loadClasses();
+      } catch (err) {
+        alert("Failed to update class: " + err.message);
+      }
+    }
   };
 
   const handleDeleteClass = async (classId) => {
@@ -76,7 +80,12 @@ const HomePage = () => {
         "Are you sure you want to delete this class? All assignments and quizzes in this class will also be deleted."
       )
     ) {
-      alert("Delete class functionality not yet implemented in backend");
+      try {
+        await api.deleteClass(classId);
+        await loadClasses();
+      } catch (err) {
+        alert("Failed to delete class: " + err.message);
+      }
     }
   };
 
@@ -85,7 +94,16 @@ const HomePage = () => {
   };
 
   const handleToggleStatus = async (classId) => {
-    alert("Toggle class status functionality not yet implemented in backend");
+    try {
+      const classItem = classData.find((c) => c.id === classId);
+      if (!classItem) return;
+
+      const newStatus = classItem.status === "active" ? "completed" : "active";
+      await api.updateClass(classId, { status: newStatus });
+      await loadClasses();
+    } catch (err) {
+      alert("Failed to update class status: " + err.message);
+    }
   };
 
   const handleSort = (field) => {
@@ -313,23 +331,6 @@ const HomePage = () => {
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                   placeholder="e.g., OOAD_ITE_M2_2025-2056"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="classDescription"
-                  className="block text-sm font-semibold text-gray-700 mb-2"
-                >
-                  Description (Optional)
-                </label>
-                <textarea
-                  id="classDescription"
-                  value={newClassDescription}
-                  onChange={(e) => setNewClassDescription(e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition resize-none"
-                  placeholder="Enter class description..."
                 />
               </div>
 
