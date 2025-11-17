@@ -269,7 +269,7 @@ const HomePage = () => {
                     >
                       {item.status}
                     </td>
-                    <td className="p-3 text-gray-700">-- students</td>
+                    <td className="p-3 text-gray-700"> student</td>
                     <td className="p-3 text-gray-700">
                       {new Date(item.created_at).toLocaleDateString()}
                     </td>

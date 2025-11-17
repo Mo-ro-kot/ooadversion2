@@ -50,6 +50,7 @@ export default function AddAssignment() {
         title,
         description,
         due_at,
+        possible_score: Number(possibleScore),
         file_url: upload?.file_url || null,
         file_name: upload?.file_name || null,
       });

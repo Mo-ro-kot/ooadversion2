@@ -150,7 +150,10 @@ export default function StudentClass() {
                 {classData.name}
               </h1>
               <p className="text-cyan-100">
-                {classData.students || 0} students • Created: {classData.date}
+                Created:{" "}
+                {classData.created_at
+                  ? new Date(classData.created_at).toLocaleDateString()
+                  : "-"}
               </p>
             </div>
 
