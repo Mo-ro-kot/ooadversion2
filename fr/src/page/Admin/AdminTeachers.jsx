@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AdminTopBar from "../../Component/Admin/AdminTopBar";
 import AdminSideNav from "../../Component/Admin/AdminSideNav";
 import UserFormModal from "../../Component/Admin/UserFormModal";
+import { api } from "../../lib/apiClient";
 
 export default function AdminTeachers() {
   const navigate = useNavigate();
@@ -29,9 +30,24 @@ export default function AdminTeachers() {
     loadTeachers();
   }, [navigate]);
 
-  const loadTeachers = () => {
-    const storedTeachers = JSON.parse(localStorage.getItem("teachers")) || [];
-    setTeachers(storedTeachers);
+  const loadTeachers = async () => {
+    try {
+      const data = await api.listTeachers();
+      const mapped = data.map((u) => ({
+        id: u.id,
+        fullName: u.full_name,
+        email: u.email,
+        username: u.username,
+        gender: u.gender,
+        phone: u.phone,
+        password: "(hidden)",
+        role: "teacher",
+      }));
+      setTeachers(mapped);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to load teachers: " + e.message);
+    }
   };
 
   const generateCredentials = () => {
@@ -45,30 +61,35 @@ export default function AdminTeachers() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (editingTeacher) {
-      // Update existing teacher
-      const updatedTeachers = teachers.map((t) =>
-        t.id === editingTeacher.id ? { ...t, ...formData } : t
-      );
-      localStorage.setItem("teachers", JSON.stringify(updatedTeachers));
-      setTeachers(updatedTeachers);
-    } else {
-      // Create new teacher
-      const newTeacher = {
-        id: Date.now(),
-        ...formData,
-        role: "teacher",
-        createdAt: new Date().toISOString(),
-      };
-      const updatedTeachers = [...teachers, newTeacher];
-      localStorage.setItem("teachers", JSON.stringify(updatedTeachers));
-      setTeachers(updatedTeachers);
+    try {
+      if (editingTeacher) {
+        alert("Editing not implemented for backend yet");
+      } else {
+        if (
+          !formData.fullName ||
+          !formData.email ||
+          !formData.username ||
+          !formData.password
+        ) {
+          alert("Full name, email, username, password required");
+          return;
+        }
+        await api.createTeacher({
+          full_name: formData.fullName,
+          email: formData.email,
+          username: formData.username,
+          password: formData.password,
+          gender: formData.gender || null,
+          phone: formData.phone || null,
+        });
+        await loadTeachers();
+      }
+      closeModal();
+    } catch (err) {
+      alert(err.message || "Failed to save teacher");
     }
-
-    closeModal();
   };
 
   const handleEdit = (teacher) => {
@@ -85,11 +106,7 @@ export default function AdminTeachers() {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this teacher?")) {
-      const updatedTeachers = teachers.filter((t) => t.id !== id);
-      localStorage.setItem("teachers", JSON.stringify(updatedTeachers));
-      setTeachers(updatedTeachers);
-    }
+    alert("Delete not implemented with backend yet");
   };
 
   const openModal = () => {

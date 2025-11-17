@@ -45,6 +45,13 @@ export const api = {
 
   // Users
   updateMe: (data) => request("/api/users/me", { method: "PUT", body: data }),
+  // Admin user management
+  listStudents: () => request("/api/users/students"),
+  createStudent: (data) =>
+    request("/api/users/students", { method: "POST", body: data }),
+  listTeachers: () => request("/api/users/teachers"),
+  createTeacher: (data) =>
+    request("/api/users/teachers", { method: "POST", body: data }),
 
   // Classes
   getClasses: () => request("/api/classes"),

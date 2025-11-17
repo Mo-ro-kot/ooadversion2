@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AdminTopBar from "../../Component/Admin/AdminTopBar";
 import AdminSideNav from "../../Component/Admin/AdminSideNav";
 import UserFormModal from "../../Component/Admin/UserFormModal";
+import { api } from "../../lib/apiClient";
 
 export default function AdminStudents() {
   const navigate = useNavigate();
@@ -29,9 +30,25 @@ export default function AdminStudents() {
     loadStudents();
   }, [navigate]);
 
-  const loadStudents = () => {
-    const storedStudents = JSON.parse(localStorage.getItem("students")) || [];
-    setStudents(storedStudents);
+  const loadStudents = async () => {
+    try {
+      const data = await api.listStudents();
+      // Map to existing component field names
+      const mapped = data.map((u) => ({
+        id: u.id,
+        fullName: u.full_name,
+        email: u.email,
+        username: u.username,
+        gender: u.gender,
+        phone: u.phone,
+        password: "(hidden)",
+        role: "student",
+      }));
+      setStudents(mapped);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to load students: " + e.message);
+    }
   };
 
   const generateCredentials = () => {
@@ -45,30 +62,35 @@ export default function AdminStudents() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (editingStudent) {
-      // Update existing student
-      const updatedStudents = students.map((s) =>
-        s.id === editingStudent.id ? { ...s, ...formData } : s
-      );
-      localStorage.setItem("students", JSON.stringify(updatedStudents));
-      setStudents(updatedStudents);
-    } else {
-      // Create new student
-      const newStudent = {
-        id: Date.now(),
-        ...formData,
-        role: "student",
-        createdAt: new Date().toISOString(),
-      };
-      const updatedStudents = [...students, newStudent];
-      localStorage.setItem("students", JSON.stringify(updatedStudents));
-      setStudents(updatedStudents);
+    try {
+      if (editingStudent) {
+        alert("Editing not implemented for backend yet");
+      } else {
+        if (
+          !formData.fullName ||
+          !formData.email ||
+          !formData.username ||
+          !formData.password
+        ) {
+          alert("Full name, email, username, password required");
+          return;
+        }
+        await api.createStudent({
+          full_name: formData.fullName,
+          email: formData.email,
+          username: formData.username,
+          password: formData.password,
+          gender: formData.gender || null,
+          phone: formData.phone || null,
+        });
+        await loadStudents();
+      }
+      closeModal();
+    } catch (err) {
+      alert(err.message || "Failed to save student");
     }
-
-    closeModal();
   };
 
   const handleEdit = (student) => {
@@ -85,11 +107,7 @@ export default function AdminStudents() {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this student?")) {
-      const updatedStudents = students.filter((s) => s.id !== id);
-      localStorage.setItem("students", JSON.stringify(updatedStudents));
-      setStudents(updatedStudents);
-    }
+    alert("Delete not implemented with backend yet");
   };
 
   const openModal = () => {

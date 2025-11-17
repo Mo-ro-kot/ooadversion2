@@ -103,12 +103,23 @@ router.post("/register-admin", async (req, res) => {
       (email.includes("@") ? email.split("@")[0] : email);
     const full_name = rawFullName?.trim() || "Admin";
     const role = "admin";
+    console.log(
+      "[register-admin] Derived username=",
+      username,
+      "full_name=",
+      full_name
+    );
     const [result] = await pool.query(
       "INSERT INTO users (username, email, password_hash, full_name, gender, phone, role) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [username, email, password_hash, full_name, gender, phone, role]
     );
+    console.log("[register-admin] Insert users result:", {
+      insertId: result.insertId,
+      affectedRows: result.affectedRows,
+    });
     const userId = result.insertId;
     await pool.query("INSERT INTO admins (user_id) VALUES (?)", [userId]);
+    console.log("[register-admin] Inserted admin row for userId=", userId);
 
     const token = signToken({ userId, role: "admin" });
     return res.status(201).json({
@@ -123,3 +134,16 @@ router.post("/register-admin", async (req, res) => {
 });
 
 export default router;
+
+// Debug: list recent users (DO NOT enable in production without auth)
+router.get("/debug/users", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, username, email, role, created_at FROM users ORDER BY id DESC LIMIT 20"
+    );
+    return res.json(rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to list users" });
+  }
+});
