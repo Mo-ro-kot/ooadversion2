@@ -12,11 +12,21 @@ async function isTeacher(userId) {
   return !!t;
 }
 async function isStudent(userId) {
+  console.log("[DEBUG] Checking isStudent for userId:", userId);
+  // First check students table
   const [[s]] = await pool.query(
     "SELECT user_id FROM students WHERE user_id = ?",
     [userId]
   );
-  return !!s;
+  console.log("[DEBUG] Student query result:", s);
+  if (s) return true;
+
+  // Fallback: check user role in users table
+  const [[u]] = await pool.query("SELECT role FROM users WHERE id = ?", [
+    userId,
+  ]);
+  console.log("[DEBUG] User role from users table:", u?.role);
+  return u?.role === "student";
 }
 
 router.get("/classes/:classId/quizzes", requireAuth, async (req, res) => {
@@ -135,8 +145,10 @@ router.get("/quizzes/:id/my-submission", requireAuth, async (req, res) => {
 
 router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
   const { userId } = req.user;
-  if (!(await isStudent(userId)))
-    return res.status(403).json({ error: "Forbidden" });
+  console.log("[DEBUG] Quiz submission - userId:", userId);
+  const studentCheck = await isStudent(userId);
+  console.log("[DEBUG] isStudent result:", studentCheck);
+  if (!studentCheck) return res.status(403).json({ error: "Forbidden" });
   const { id } = req.params;
   const { answers } = req.body || {};
   if (!Array.isArray(answers) || answers.length === 0)
@@ -159,6 +171,7 @@ router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
         "SELECT qo.question_id, qo.id as option_id, qo.is_correct FROM quiz_options qo WHERE qo.question_id IN (?)",
         [qids]
       );
+      console.log("[DEBUG] Quiz options from DB:", rows);
       for (const r of rows) {
         if (!correctMap.has(r.question_id))
           correctMap.set(r.question_id, {
@@ -170,12 +183,24 @@ router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
       }
     }
 
+    console.log(
+      "[DEBUG] Correct options map:",
+      Array.from(correctMap.entries())
+    );
+
     let score = 0;
     for (const a of answers) {
       const correct = correctMap.get(a.question_id) || {
         correctOptionId: null,
       };
       const is_correct = a.selected_option_id === correct.correctOptionId;
+      console.log(
+        `[DEBUG] Question ${a.question_id}: selected=${
+          a.selected_option_id
+        }, correct=${
+          correct.correctOptionId
+        }, match=${is_correct}, types: ${typeof a.selected_option_id} vs ${typeof correct.correctOptionId}`
+      );
       if (is_correct) score += 1;
       await conn.query(
         "INSERT INTO quiz_answers (submission_id, question_id, selected_option_id, is_correct) VALUES (?, ?, ?, ?)",

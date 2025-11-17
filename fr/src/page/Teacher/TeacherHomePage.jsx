@@ -90,6 +90,8 @@ const HomePage = () => {
   };
 
   const handleClassClick = (classItem) => {
+    // Save to localStorage for cross-page navigation
+    localStorage.setItem("currentTeacherClass", JSON.stringify(classItem));
     navigate("/Teacher/general", { state: { classData: classItem } });
   };
 

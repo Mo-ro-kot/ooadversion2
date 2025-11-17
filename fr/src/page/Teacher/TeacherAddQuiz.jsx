@@ -15,7 +15,6 @@ export default function TeacherAddQuiz() {
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
-  const [possibleScore, setPossibleScore] = useState("");
   const [questions, setQuestions] = useState([
     {
       id: 1,
@@ -234,24 +233,12 @@ export default function TeacherAddQuiz() {
                 </div>
               </div>
 
-              {/* Possible Score */}
-              <div>
-                <label
-                  htmlFor="possibleScore"
-                  className="block text-sm font-semibold text-gray-700 mb-2"
-                >
-                  Possible Score
-                </label>
-                <input
-                  type="number"
-                  id="possibleScore"
-                  value={possibleScore}
-                  onChange={(e) => setPossibleScore(e.target.value)}
-                  required
-                  min="0"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
-                  placeholder="Enter total points for this quiz"
-                />
+              {/* Auto-calculated score info */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-gray-700">
+                  <span className="font-semibold">Total Points:</span>{" "}
+                  {questions.length} (1 point per question)
+                </p>
               </div>
 
               {/* Questions Section */}

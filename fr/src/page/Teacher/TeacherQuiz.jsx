@@ -1,58 +1,54 @@
 import TeacherTopBar from "../../Component/Teacher/TeacherTopBar";
 import TeacherSideNav from "../../Component/Teacher/TeacherSideNav";
 import TeacherQuizCard from "../../Component/Teacher/TeacherQuizCard";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { api } from "../../lib/apiClient";
 
 export default function Quiz() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const classData = location.state?.classData;
   const [quizzes, setQuizzes] = useState([]);
-  const [currentClass, setCurrentClass] = useState(null);
+  const [currentClass, setCurrentClass] = useState(classData || null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadQuizzes();
-  }, []);
-
-  const loadQuizzes = () => {
-    // Get current class from localStorage
-    const savedClass = localStorage.getItem("currentTeacherClass");
-    if (savedClass) {
-      const classData = JSON.parse(savedClass);
-      setCurrentClass(classData);
-
-      // Load fresh class data from classes array
-      const classes = JSON.parse(localStorage.getItem("classes")) || [];
-      const currentClassData = classes.find((c) => c.id === classData.id);
-
-      if (currentClassData && currentClassData.quizzes) {
-        setQuizzes(currentClassData.quizzes);
-      } else {
-        setQuizzes([]);
-      }
+    // Try to get class from state first, then fallback to localStorage
+    const classToUse =
+      classData ||
+      JSON.parse(localStorage.getItem("currentTeacherClass") || "null");
+    if (classToUse) {
+      setCurrentClass(classToUse);
+      loadQuizzes(classToUse.id);
     } else {
-      setQuizzes([]);
+      setLoading(false);
+    }
+  }, [classData]);
+
+  const loadQuizzes = async (classId) => {
+    try {
+      setLoading(true);
+      const quizzesList = await api.listQuizzes(classId);
+      setQuizzes(quizzesList);
+    } catch (e) {
+      console.error("Failed to load quizzes:", e);
+      alert("Failed to load quizzes: " + e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = (quizId) => {
+  const handleDelete = async (quizId) => {
     if (window.confirm("Are you sure you want to delete this quiz?")) {
       if (!currentClass) return;
 
-      // Update class in classes array
-      const classes = JSON.parse(localStorage.getItem("classes")) || [];
-      const updatedClasses = classes.map((c) => {
-        if (c.id === currentClass.id) {
-          return {
-            ...c,
-            quizzes: c.quizzes.filter((q) => q.id !== quizId),
-          };
-        }
-        return c;
-      });
-      localStorage.setItem("classes", JSON.stringify(updatedClasses));
-
-      // Update local state
-      setQuizzes(quizzes.filter((q) => q.id !== quizId));
+      try {
+        await api.deleteQuiz(quizId);
+        setQuizzes(quizzes.filter((q) => q.id !== quizId));
+      } catch (e) {
+        alert("Failed to delete quiz: " + e.message);
+      }
     }
   };
 
@@ -81,7 +77,11 @@ export default function Quiz() {
             </button>
           </div>
           <div className="flex-1 p-10 pl-20 pr-20 space-y-6">
-            {!currentClass ? (
+            {loading ? (
+              <div className="text-center text-gray-500 py-10">
+                Loading quizzes...
+              </div>
+            ) : !currentClass ? (
               <div className="text-center text-gray-500 py-10">
                 <p className="text-lg mb-2">No class selected</p>
                 <p className="text-sm">
@@ -98,10 +98,14 @@ export default function Quiz() {
               quizzes.map((quiz) => (
                 <TeacherQuizCard
                   key={quiz.id}
-                  date={new Date(quiz.createdAt).toLocaleDateString()}
+                  date={
+                    quiz.created_at
+                      ? new Date(quiz.created_at).toLocaleDateString()
+                      : "N/A"
+                  }
                   title={quiz.title}
-                  due={quiz.dueDate}
-                  possibleScore={quiz.possibleScore}
+                  due={quiz.due_at}
+                  possibleScore={quiz.possible_score}
                   onDelete={() => handleDelete(quiz.id)}
                   onViewResponses={() => handleViewResponses(quiz)}
                 />

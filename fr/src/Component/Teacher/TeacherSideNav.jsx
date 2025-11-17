@@ -129,7 +129,14 @@ const TeacherSideNav = () => {
 
       <button
         onClick={() => {
-          navigate("/Teacher/assignment");
+          const savedClass = localStorage.getItem("currentTeacherClass");
+          if (savedClass) {
+            navigate("/Teacher/assignment", {
+              state: { classData: JSON.parse(savedClass) },
+            });
+          } else {
+            navigate("/Teacher/assignment");
+          }
         }}
       >
         <NavItem
@@ -140,7 +147,14 @@ const TeacherSideNav = () => {
       </button>
       <button
         onClick={() => {
-          navigate("/Teacher/quiz");
+          const savedClass = localStorage.getItem("currentTeacherClass");
+          if (savedClass) {
+            navigate("/Teacher/quiz", {
+              state: { classData: JSON.parse(savedClass) },
+            });
+          } else {
+            navigate("/Teacher/quiz");
+          }
         }}
       >
         <NavItem

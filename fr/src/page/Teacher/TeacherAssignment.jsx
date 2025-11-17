@@ -1,58 +1,54 @@
 import TeacherTopBar from "../../Component/Teacher/TeacherTopBar";
 import TeacherSideNav from "../../Component/Teacher/TeacherSideNav";
 import TeacherAssignmentCard from "../../Component/Teacher/TeacherAsssignmentCard";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { api } from "../../lib/apiClient";
 
 export default function Assignment() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const classData = location.state?.classData;
   const [assignments, setAssignments] = useState([]);
-  const [currentClass, setCurrentClass] = useState(null);
+  const [currentClass, setCurrentClass] = useState(classData || null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadAssignments();
-  }, []);
-
-  const loadAssignments = () => {
-    // Get current class from localStorage
-    const savedClass = localStorage.getItem("currentTeacherClass");
-    if (savedClass) {
-      const classData = JSON.parse(savedClass);
-      setCurrentClass(classData);
-
-      // Load fresh class data from classes array
-      const classes = JSON.parse(localStorage.getItem("classes")) || [];
-      const currentClassData = classes.find((c) => c.id === classData.id);
-
-      if (currentClassData && currentClassData.assignments) {
-        setAssignments(currentClassData.assignments);
-      } else {
-        setAssignments([]);
-      }
+    // Try to get class from state first, then fallback to localStorage
+    const classToUse =
+      classData ||
+      JSON.parse(localStorage.getItem("currentTeacherClass") || "null");
+    if (classToUse) {
+      setCurrentClass(classToUse);
+      loadAssignments(classToUse.id);
     } else {
-      setAssignments([]);
+      setLoading(false);
+    }
+  }, [classData]);
+
+  const loadAssignments = async (classId) => {
+    try {
+      setLoading(true);
+      const assignmentsList = await api.listAssignments(classId);
+      setAssignments(assignmentsList);
+    } catch (e) {
+      console.error("Failed to load assignments:", e);
+      alert("Failed to load assignments: " + e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this assignment?")) {
       if (!currentClass) return;
 
-      // Update class in classes array
-      const classes = JSON.parse(localStorage.getItem("classes")) || [];
-      const updatedClasses = classes.map((c) => {
-        if (c.id === currentClass.id) {
-          return {
-            ...c,
-            assignments: c.assignments.filter((a) => a.id !== id),
-          };
-        }
-        return c;
-      });
-      localStorage.setItem("classes", JSON.stringify(updatedClasses));
-
-      // Update local state
-      setAssignments(assignments.filter((a) => a.id !== id));
+      try {
+        await api.deleteAssignment(id);
+        setAssignments(assignments.filter((a) => a.id !== id));
+      } catch (e) {
+        alert("Failed to delete assignment: " + e.message);
+      }
     }
   };
 
@@ -83,7 +79,11 @@ export default function Assignment() {
             </button>
           </div>
           <div className="flex-1 p-10 pl-20 pr-20 space-y-6">
-            {!currentClass ? (
+            {loading ? (
+              <div className="text-center text-gray-500 py-10">
+                Loading assignments...
+              </div>
+            ) : !currentClass ? (
               <div className="text-center text-gray-500 py-10">
                 <p className="text-lg mb-2">No class selected</p>
                 <p className="text-sm">
@@ -104,10 +104,10 @@ export default function Assignment() {
               assignments.map((assignment) => (
                 <TeacherAssignmentCard
                   key={assignment.id}
-                  date={assignment.createdAt}
+                  date={assignment.created_at}
                   title={assignment.title}
-                  due={assignment.dueDate}
-                  possibleScore={assignment.possibleScore}
+                  due={assignment.due_at}
+                  possibleScore={assignment.possible_score}
                   onDelete={() => handleDelete(assignment.id)}
                   onViewResponses={() => handleViewResponses(assignment)}
                 />
