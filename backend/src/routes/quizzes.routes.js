@@ -1,0 +1,215 @@
+import { Router } from "express";
+import { pool } from "../config/db.js";
+import { requireAuth } from "../middleware/auth.js";
+
+const router = Router();
+
+async function isTeacher(userId) {
+  const [[t]] = await pool.query(
+    "SELECT user_id FROM teachers WHERE user_id = ?",
+    [userId]
+  );
+  return !!t;
+}
+async function isStudent(userId) {
+  const [[s]] = await pool.query(
+    "SELECT user_id FROM students WHERE user_id = ?",
+    [userId]
+  );
+  return !!s;
+}
+
+router.get("/classes/:classId/quizzes", requireAuth, async (req, res) => {
+  const { classId } = req.params;
+  try {
+    const [rows] = await pool.query(
+      "SELECT * FROM quizzes WHERE class_id = ? ORDER BY (due_at IS NULL), due_at DESC",
+      [classId]
+    );
+    return res.json(rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to fetch quizzes" });
+  }
+});
+
+router.post("/classes/:classId/quizzes", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  if (!(await isTeacher(userId)))
+    return res.status(403).json({ error: "Forbidden" });
+  const { classId } = req.params;
+  const { title, description, due_at, questions } = req.body || {};
+  if (!title) return res.status(400).json({ error: "Title required" });
+  if (!Array.isArray(questions) || questions.length === 0)
+    return res.status(400).json({ error: "Questions required" });
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [qr] = await conn.query(
+      "INSERT INTO quizzes (class_id, title, description, due_at, created_by) VALUES (?, ?, ?, ?, ?)",
+      [classId, title, description || null, due_at || null, userId]
+    );
+    const quizId = qr.insertId;
+    for (const q of questions) {
+      const [qRes] = await conn.query(
+        "INSERT INTO quiz_questions (quiz_id, text, points) VALUES (?, ?, ?)",
+        [quizId, q.text, q.points ?? 1]
+      );
+      const questionId = qRes.insertId;
+      for (const opt of q.options || []) {
+        await conn.query(
+          "INSERT INTO quiz_options (question_id, text, is_correct) VALUES (?, ?, ?)",
+          [questionId, opt.text, !!opt.is_correct]
+        );
+      }
+    }
+    await conn.commit();
+    const [[quiz]] = await pool.query("SELECT * FROM quizzes WHERE id = ?", [
+      quizId,
+    ]);
+    return res.status(201).json(quiz);
+  } catch (e) {
+    await conn.rollback();
+    console.error(e);
+    return res.status(500).json({ error: "Failed to create quiz" });
+  } finally {
+    conn.release();
+  }
+});
+
+router.get("/quizzes/:id", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [[quiz]] = await pool.query("SELECT * FROM quizzes WHERE id = ?", [
+      id,
+    ]);
+    if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+    const [questions] = await pool.query(
+      "SELECT * FROM quiz_questions WHERE quiz_id = ?",
+      [id]
+    );
+    const qids = questions.map((q) => q.id);
+    let options = [];
+    if (qids.length) {
+      const [optRows] = await pool.query(
+        "SELECT * FROM quiz_options WHERE question_id IN (?)",
+        [qids]
+      );
+      options = optRows;
+    }
+    const full = questions.map((q) => ({
+      ...q,
+      options: options.filter((o) => o.question_id === q.id),
+    }));
+    return res.json({ ...quiz, questions: full });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to fetch quiz" });
+  }
+});
+
+// Student: fetch own quiz submission for status display
+router.get("/quizzes/:id/my-submission", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  try {
+    const [[row]] = await pool.query(
+      "SELECT * FROM quiz_submissions WHERE quiz_id = ? AND student_id = ?",
+      [req.params.id, userId]
+    );
+    return res.json(row || null);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to fetch quiz submission" });
+  }
+});
+
+router.post("/quizzes/:id/submissions", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  if (!(await isStudent(userId)))
+    return res.status(403).json({ error: "Forbidden" });
+  const { id } = req.params;
+  const { answers } = req.body || {};
+  if (!Array.isArray(answers) || answers.length === 0)
+    return res.status(400).json({ error: "Answers required" });
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    // Create submission
+    const [subRes] = await conn.query(
+      "INSERT INTO quiz_submissions (quiz_id, student_id, submitted_at, score) VALUES (?, ?, NOW(), 0)",
+      [id, userId]
+    );
+    const submissionId = subRes.insertId;
+
+    // Fetch correct options for scoring
+    const qids = answers.map((a) => a.question_id);
+    let correctMap = new Map();
+    if (qids.length) {
+      const [rows] = await conn.query(
+        "SELECT qo.question_id, qo.id as option_id, qo.is_correct, qq.points FROM quiz_options qo JOIN quiz_questions qq ON qq.id = qo.question_id WHERE qo.question_id IN (?)",
+        [qids]
+      );
+      for (const r of rows) {
+        if (!correctMap.has(r.question_id))
+          correctMap.set(r.question_id, {
+            correctOptionId: null,
+            points: r.points || 1,
+          });
+        if (r.is_correct) {
+          correctMap.get(r.question_id).correctOptionId = r.option_id;
+        }
+      }
+    }
+
+    let score = 0;
+    for (const a of answers) {
+      const correct = correctMap.get(a.question_id) || {
+        correctOptionId: null,
+        points: 1,
+      };
+      const is_correct = a.selected_option_id === correct.correctOptionId;
+      if (is_correct) score += correct.points || 1;
+      await conn.query(
+        "INSERT INTO quiz_answers (submission_id, question_id, selected_option_id, is_correct) VALUES (?, ?, ?, ?)",
+        [submissionId, a.question_id, a.selected_option_id || null, is_correct]
+      );
+    }
+
+    await conn.query("UPDATE quiz_submissions SET score = ? WHERE id = ?", [
+      score,
+      submissionId,
+    ]);
+    await conn.commit();
+
+    const [[result]] = await pool.query(
+      "SELECT * FROM quiz_submissions WHERE id = ?",
+      [submissionId]
+    );
+    return res.status(201).json(result);
+  } catch (e) {
+    await conn.rollback();
+    console.error(e);
+    return res.status(500).json({ error: "Failed to submit quiz" });
+  } finally {
+    conn.release();
+  }
+});
+
+router.get("/quizzes/:id/submissions", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  if (!(await isTeacher(userId)))
+    return res.status(403).json({ error: "Forbidden" });
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query(
+      "SELECT qs.*, u.first_name, u.last_name, u.email FROM quiz_submissions qs JOIN users u ON u.id = qs.student_id WHERE qs.quiz_id = ?",
+      [id]
+    );
+    return res.json(rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to fetch quiz submissions" });
+  }
+});
+
+export default router;
