@@ -1,6 +1,21 @@
 export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
+function getRoleFromPath() {
+  const path = window.location.pathname;
+  if (path.startsWith("/Admin")) return "admin";
+  if (path.startsWith("/Teacher")) return "teacher";
+  if (path.startsWith("/Student")) return "student";
+  return null;
+}
+
 function getToken() {
+  // Get role-specific token based on current route
+  const role = getRoleFromPath();
+  if (role) {
+    const roleToken = localStorage.getItem(`token_${role}`);
+    if (roleToken) return roleToken;
+  }
+  // Fallback to generic token
   return localStorage.getItem("token");
 }
 
