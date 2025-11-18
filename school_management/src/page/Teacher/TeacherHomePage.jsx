@@ -157,7 +157,7 @@ const HomePage = () => {
           {/* Text */}
           <div className="w-full md:w-1/2">
             <h1 className="font-black text-2xl sm:text-3xl md:text-4xl mb-4 text-gray-800">
-              WELCOME, PORY MOROKOT!
+              WELCOME,TEACHER!
             </h1>
             <p className="font-semibold text-sm md:text-base leading-relaxed text-gray-600">
               Our students are the hope of our country’s future. Each one

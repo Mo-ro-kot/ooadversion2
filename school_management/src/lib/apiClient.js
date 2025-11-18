@@ -102,6 +102,8 @@ export const api = {
       body: data,
     }),
   getAssignment: (id) => request(`/api/assignments/${id}`),
+  updateAssignment: (id, data) =>
+    request(`/api/assignments/${id}`, { method: "PUT", body: data }),
   myAssignmentSubmission: (id) =>
     request(`/api/assignments/${id}/my-submission`),
   submitAssignment: (id, data) =>

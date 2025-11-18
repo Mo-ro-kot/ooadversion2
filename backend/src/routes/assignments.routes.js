@@ -79,6 +79,55 @@ router.get("/assignments/:id", requireAuth, async (req, res) => {
   }
 });
 
+// Update assignment (teacher only)
+router.put("/assignments/:id", requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  if (!(await isTeacher(userId)))
+    return res.status(403).json({ error: "Forbidden" });
+  const { id } = req.params;
+  const { title, description, due_at, file_url, file_name, possible_score } =
+    req.body || {};
+  try {
+    const [[assignment]] = await pool.query(
+      "SELECT * FROM assignments WHERE id = ?",
+      [id]
+    );
+    if (!assignment)
+      return res.status(404).json({ error: "Assignment not found" });
+
+    // Verify teacher owns this assignment's class
+    const [[cls]] = await pool.query(
+      "SELECT teacher_id FROM classes WHERE id = ?",
+      [assignment.class_id]
+    );
+    if (!cls || cls.teacher_id !== userId)
+      return res.status(403).json({ error: "Forbidden" });
+
+    await pool.query(
+      "UPDATE assignments SET title = ?, description = ?, due_at = ?, file_url = ?, file_name = ?, possible_score = ? WHERE id = ?",
+      [
+        title !== undefined ? title : assignment.title,
+        description !== undefined ? description : assignment.description,
+        due_at !== undefined ? due_at : assignment.due_at,
+        file_url !== undefined ? file_url : assignment.file_url,
+        file_name !== undefined ? file_name : assignment.file_name,
+        possible_score !== undefined
+          ? possible_score
+          : assignment.possible_score,
+        id,
+      ]
+    );
+    const [[updated]] = await pool.query(
+      "SELECT * FROM assignments WHERE id = ?",
+      [id]
+    );
+    return res.json(updated);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to update assignment" });
+  }
+});
+
 // Student: fetch own submission for status display
 router.get("/assignments/:id/my-submission", requireAuth, async (req, res) => {
   const { userId } = req.user;

@@ -52,6 +52,15 @@ export default function Assignment() {
     }
   };
 
+  const handleUpdateAssignment = async (assignmentId, updateData) => {
+    try {
+      await api.updateAssignment(assignmentId, updateData);
+      await loadAssignments(currentClass.id);
+    } catch (err) {
+      alert("Failed to update assignment: " + err.message);
+    }
+  };
+
   const handleViewResponses = (assignment) => {
     navigate("/Teacher/assignment-responses", {
       state: { assignment, classId: currentClass?.id },
@@ -110,6 +119,9 @@ export default function Assignment() {
                   possibleScore={assignment.possible_score}
                   onDelete={() => handleDelete(assignment.id)}
                   onViewResponses={() => handleViewResponses(assignment)}
+                  onUpdate={(data) =>
+                    handleUpdateAssignment(assignment.id, data)
+                  }
                 />
               ))
             )}

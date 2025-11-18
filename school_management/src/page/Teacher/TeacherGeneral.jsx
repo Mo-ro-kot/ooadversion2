@@ -98,6 +98,15 @@ const General = () => {
     }
   };
 
+  const handleUpdateAssignment = async (assignmentId, updateData) => {
+    try {
+      await api.updateAssignment(assignmentId, updateData);
+      await loadClassData(currentClass.id);
+    } catch (err) {
+      alert("Failed to update assignment: " + err.message);
+    }
+  };
+
   const handleDeleteQuiz = async (quizId) => {
     if (window.confirm("Are you sure you want to delete this quiz?")) {
       try {
@@ -213,6 +222,7 @@ const General = () => {
                 onViewResponses={() =>
                   handleViewAssignmentResponses(assignment)
                 }
+                onUpdate={(data) => handleUpdateAssignment(assignment.id, data)}
               />
             ))}
             {quizzes.map((quiz) => (
