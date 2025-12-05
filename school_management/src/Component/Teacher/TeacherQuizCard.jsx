@@ -35,7 +35,6 @@ const TeacherQuizCard = ({
       <div className="p-4 bg-green-50/50 rounded-md border border-green-200">
         <h2 className="text-xl font-bold mb-2 text-gray-800">{title}</h2>
         <p className="text-sm text-red-500 mb-2">Due {due}</p>
-        <p className="text-sm text-gray-600 mb-4">Points: {possibleScore}</p>
 
         <button
           onClick={onViewResponses}
